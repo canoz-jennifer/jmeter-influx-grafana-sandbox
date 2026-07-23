@@ -1,0 +1,70 @@
+name: Pipeline de Performance Personal (Docker + JMeter)
+
+on:
+  workflow_dispatch:
+    inputs:
+      targetconcurrency: { type: string, required: true, default: '10' }
+      rampuptime:        { type: string, required: true, default: '10' }
+      duration:          { type: string, required: true, default: '15' }
+      jmx_path:          { type: string, required: true, default: './performance-tests/backend-jmeter/SC_apiPrueba.jmx' }
+              
+jobs:
+  performance_test:
+    runs-on: ubuntu-latest # Usamos las máquinas gratis de GitHub
+
+    steps:
+      - name: 1. Descargar Código
+        uses: actions/checkout@v4
+
+      - name: 2. Levantar InfluxDB y Grafana (Docker Compose)
+        env:
+            INFLUX_USER: admin
+            INFLUX_PASSWORD: passwordSeguro123
+            INFLUX_ORG: organizationQC
+            INFLUX_BUCKET: jmeter
+            INFLUX_TOKEN: "${{ secrets.INFLUX_TOKEN }}"
+        run: |
+          docker compose up -d
+          echo "Esperando a que InfluxDB esté listo..."
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:8086/health && break
+            echo "Intento $i/30..."
+            sleep 2
+          done
+          curl -sf http://localhost:8086/health || { echo "InfluxDB no respondió después de 60s"; exit 1; }
+
+      - name: 3. Instalar Apache JMeter
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openjdk-17-jre-headless
+          curl -L https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-5.6.3.tgz -o jmeter.tgz
+          tar -xzf jmeter.tgz
+          echo "JMETER_HOME=$GITHUB_WORKSPACE/apache-jmeter-5.6.3" >> $GITHUB_ENV
+
+      - name: 4. Ejecutar Prueba de Carga
+        continue-on-error: true
+        env:
+          JVM_ARGS: "-Xms1g -Xmx2g" # Ajustado para la máquina de GitHub
+        run: |
+          mkdir -p reports
+          $JMETER_HOME/bin/jmeter -n \
+            -t "${{ inputs.jmx_path }}" \
+            -l "reports/results.jtl" \
+            -e -o "reports/dashboard-html" \
+            -Jsummariser.interval=10 \
+            -JV_threads=${{ inputs.targetconcurrency }} \
+            -JV_rampUp=${{ inputs.rampuptime }} \
+            -JV_duration=${{ inputs.duration }} \
+            -JINFLUX_HOST="localhost" \
+            -JINFLUX_TOKEN="${{ secrets.INFLUX_TOKEN }}"
+
+      - name: 5. Guardar Reporte HTML como Artefacto
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jmeter-report
+          path: reports/dashboard-html/
+
+      - name: 6. Limpiar contenedores
+        if: always()
+        run: docker compose down -v

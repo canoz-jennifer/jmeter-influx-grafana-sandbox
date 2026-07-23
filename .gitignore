@@ -1,0 +1,28 @@
+# ==========================================================
+# Archivo para ignorar ficheros en Git
+# Proyecto de Pruebas con JMeter y Docker
+# ==========================================================
+
+# 1. Archivo de variables de entorno (¡MUY IMPORTANTE!)
+# Contiene secretos como contraseñas y tokens. Nunca debe estar en el repositorio.
+.env
+
+# 2. Resultados, logs y reportes de JMeter
+# Estos archivos son generados en cada ejecución, pueden ser muy grandes y no
+# pertenecen al código fuente del proyecto.
+*.jtl
+*.jtl.gz
+jmeter.log
+/report/
+/dashboard/
+
+# 3. Archivos y carpetas de IDEs (Editores de Código)
+# Contienen configuración personal de tu editor y no deben ser compartidos.
+.vscode/
+.idea/
+*.iml
+
+# 4. Archivos temporales del sistema operativo
+# Basura generada automáticamente por Windows, macOS o Linux.
+.DS_Store
+Thumbs.db

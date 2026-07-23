@@ -1,0 +1,40 @@
+services:
+  # Servicio de la Base de Datos Time-Series
+  influxdb:
+    image: influxdb:2.7 # Usamos la versión 2.7 de InfluxDB
+    container_name: influxdb
+    ports:
+      - "8086:8086" # Puerto para la API de InfluxDB
+    volumes:
+      - influxdb_data:/var/lib/influxdb2 # Volumen para persistir los datos
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=${INFLUX_USER}
+      - DOCKER_INFLUXDB_INIT_PASSWORD=${INFLUX_PASSWORD}
+      - DOCKER_INFLUXDB_INIT_ORG=${INFLUX_ORG}
+      - DOCKER_INFLUXDB_INIT_BUCKET=${INFLUX_BUCKET}
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUX_TOKEN}
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8086/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Servicio del Dashboard
+  grafana:
+    image: grafana/grafana-oss:11.4.0 # 👈 FIJAMOS VERSIÓN EXACTA (No más latest)
+    container_name: grafana
+    ports:
+      - "3000:3000" # Puerto para acceder a la web de Grafana
+    volumes:
+      - grafana_data:/var/lib/grafana # Volumen para persistir dashboards y configuraciones
+    depends_on:
+      influxdb:
+        condition: service_healthy
+
+
+# Definición de los volúmenes para que los datos no se borren
+volumes:
+  influxdb_data: {}
+  grafana_data: {}
